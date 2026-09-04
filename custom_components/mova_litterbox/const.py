@@ -30,11 +30,13 @@ KNOWN_PROPERTIES = {
     "2.6": "Property 2.6",
     "2.10": "Property 2.10",
     "2.11": "Property 2.11",
-    # Confirmed 2026-09-04: captured a real app "start cleaning" tap as
+    # Confirmed 2026-09-04: captured a real app button tap as
     # set_properties siid=3/piid=13 value=1 (then value=0 shortly after),
-    # followed by an event_occured(siid=4, eiid=9) - a fresh event id,
-    # likely "cleaning cycle started". Not yet writable from HA (see
-    # broker.py - the proxy only relays/observes so far, doesn't inject).
-    "3.13": "Start Cleaning (observed, not yet controllable from HA)",
+    # followed by an event_occured(siid=4, eiid=9). Denis confirmed the
+    # button he tapped was air purification/deodorizing, not the cleaning
+    # cycle - so this is that toggle, not "start cleaning". Not yet
+    # writable from HA (see broker.py - the proxy only relays/observes
+    # so far, doesn't inject).
+    "3.13": "Air Purification (observed, not yet controllable from HA)",
     "3.14": "Consumable 2",
 }
