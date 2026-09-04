@@ -1,8 +1,10 @@
 """The MOVA Litter Box (local) integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import ssl
+import threading
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
@@ -79,16 +81,28 @@ class MovaLitterBoxData:
             _LOGGER.warning("Unhandled MOVA message: %s", message)
 
         # handle_message is called from the broker's own connection-handling
-        # task/thread, which HA doesn't guarantee is hass's event loop
-        # thread - dispatching directly here crashed both with "loop ...
-        # is not the running loop" and (confirmed via HA's own thread-safety
-        # detector) entities calling async_write_ha_state off-thread. A raw
-        # hass.loop.call_soon_threadsafe() turned out not to be enough -
-        # hass.add_job() is HA's own documented/supported way to schedule
-        # a callable onto hass's loop safely from any thread.
-        if is_new:
-            hass.add_job(async_dispatcher_send, hass, SIGNAL_NEW_DEVICE, did)
-        hass.add_job(async_dispatcher_send, hass, SIGNAL_UPDATE, did)
+        # task/thread. Two prior attempts here (raw
+        # hass.loop.call_soon_threadsafe, then hass.add_job - which for a
+        # @callback-decorated target like async_dispatcher_send reduces to
+        # the same call_soon_threadsafe internally) both still resulted in
+        # HA's thread-safety detector reporting entities calling
+        # async_write_ha_state off the event loop thread. Logging the exact
+        # check HA itself uses (hass.loop_thread_id vs
+        # threading.get_ident()) right here, plus switching to
+        # run_coroutine_threadsafe, which runs the target as a real
+        # coroutine on hass.loop rather than a scheduled plain callback.
+        _LOGGER.warning(
+            "[thread-debug] handle_message: current_thread_id=%s hass.loop_thread_id=%s same=%s",
+            threading.get_ident(), hass.loop_thread_id,
+            threading.get_ident() == hass.loop_thread_id,
+        )
+
+        async def _dispatch() -> None:
+            if is_new:
+                async_dispatcher_send(hass, SIGNAL_NEW_DEVICE, did)
+            async_dispatcher_send(hass, SIGNAL_UPDATE, did)
+
+        asyncio.run_coroutine_threadsafe(_dispatch(), hass.loop)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
