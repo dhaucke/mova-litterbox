@@ -79,17 +79,16 @@ class MovaLitterBoxData:
             _LOGGER.warning("Unhandled MOVA message: %s", message)
 
         # handle_message is called from the broker's own connection-handling
-        # task, which HA doesn't guarantee runs on hass.loop - dispatching
-        # directly here can construct a Task bound to the wrong loop
-        # (RuntimeError: loop ... is not the running loop). call_soon_threadsafe
-        # guarantees the dispatch itself always runs on hass.loop.
+        # task/thread, which HA doesn't guarantee is hass's event loop
+        # thread - dispatching directly here crashed both with "loop ...
+        # is not the running loop" and (confirmed via HA's own thread-safety
+        # detector) entities calling async_write_ha_state off-thread. A raw
+        # hass.loop.call_soon_threadsafe() turned out not to be enough -
+        # hass.add_job() is HA's own documented/supported way to schedule
+        # a callable onto hass's loop safely from any thread.
         if is_new:
-            hass.loop.call_soon_threadsafe(
-                async_dispatcher_send, hass, SIGNAL_NEW_DEVICE, did
-            )
-        hass.loop.call_soon_threadsafe(
-            async_dispatcher_send, hass, SIGNAL_UPDATE, did
-        )
+            hass.add_job(async_dispatcher_send, hass, SIGNAL_NEW_DEVICE, did)
+        hass.add_job(async_dispatcher_send, hass, SIGNAL_UPDATE, did)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
