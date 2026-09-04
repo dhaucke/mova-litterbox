@@ -62,6 +62,16 @@ class MovaLitterBoxData:
             for prop in data.get("params", []):
                 key = f"{prop.get('siid')}.{prop.get('piid')}"
                 device["properties"][key] = prop
+        elif isinstance(data.get("result"), list):
+            # Response to a get_properties/set_properties call - the app
+            # issues these itself (we don't need to send our own query),
+            # and we get to read the answer as it passes through. Same
+            # {siid, piid, value} shape as properties_changed, plus a
+            # "code" (0 = success) we don't currently need.
+            for prop in data["result"]:
+                if prop.get("code") == 0 and "value" in prop:
+                    key = f"{prop.get('siid')}.{prop.get('piid')}"
+                    device["properties"][key] = prop
         else:
             # Anything else - notably app-issued commands, whose method
             # name/shape we don't know yet - so it's visible instead of
