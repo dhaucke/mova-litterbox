@@ -30,6 +30,11 @@ KNOWN_PROPERTIES = {
     "2.6": "Property 2.6",
     "2.10": "Property 2.10",
     "2.11": "Property 2.11",
-    "3.13": "Consumable 1",
+    # Confirmed 2026-09-04: captured a real app "start cleaning" tap as
+    # set_properties siid=3/piid=13 value=1 (then value=0 shortly after),
+    # followed by an event_occured(siid=4, eiid=9) - a fresh event id,
+    # likely "cleaning cycle started". Not yet writable from HA (see
+    # broker.py - the proxy only relays/observes so far, doesn't inject).
+    "3.13": "Start Cleaning (observed, not yet controllable from HA)",
     "3.14": "Consumable 2",
 }
