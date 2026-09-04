@@ -8,5 +8,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/dhaucke/mova-litterbox/issues",
   "requirements": ["dnspython>=2.6.0"],
-  "version": "2026.9.6"
+  "version": "2026.9.7"
 }

@@ -146,6 +146,14 @@ class MovaLocalBroker:
         self._on_message = on_message
         self._ctx = ssl_context
         self._server: asyncio.base_events.Server | None = None
+        # Built once (not per-connection): plain SSLContext, not
+        # create_default_context(), so it never touches the system trust
+        # store - which is blocking disk I/O and we ignore it anyway since
+        # verification is disabled (the device's DNS is already forcibly
+        # redirected here; we trust whatever answers on that IP).
+        self._upstream_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        self._upstream_ctx.check_hostname = False
+        self._upstream_ctx.verify_mode = ssl.CERT_NONE
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
@@ -167,15 +175,11 @@ class MovaLocalBroker:
         peer = device_writer.get_extra_info("peername")
         _LOGGER.debug("Connection from %s", peer)
 
-        upstream_ctx = ssl.create_default_context()
-        upstream_ctx.check_hostname = False
-        upstream_ctx.verify_mode = ssl.CERT_NONE
-
         try:
             upstream_reader, upstream_writer = await asyncio.open_connection(
                 self._upstream_ip,
                 self._upstream_port,
-                ssl=upstream_ctx,
+                ssl=self._upstream_ctx,
                 server_hostname=self._upstream_host,
             )
         except Exception:  # pylint: disable=broad-except

@@ -1,9 +1,6 @@
 """Sensor platform for MOVA Litter Box (local)."""
 from __future__ import annotations
 
-import asyncio
-import logging
-
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -11,23 +8,6 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN, KNOWN_PROPERTIES, SIGNAL_NEW_DEVICE, SIGNAL_UPDATE
-
-_LOGGER = logging.getLogger(__name__)
-
-
-def _log_loop_identity(context: str, hass: HomeAssistant) -> None:
-    """Diagnostic only: proves (or disproves) that async_add_entities is
-    being called from a different event loop than hass.loop, which is
-    the theory for the recurring 'loop ... is not the running loop'
-    crash - remove once that's confirmed and actually fixed."""
-    try:
-        running = asyncio.get_running_loop()
-    except RuntimeError:
-        running = None
-    _LOGGER.warning(
-        "[loop-debug] %s: hass.loop=%r running_loop=%r same=%s",
-        context, hass.loop, running, hass.loop is running,
-    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
@@ -48,11 +28,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             name = KNOWN_PROPERTIES.get(key, f"Property {key}")
             new_entities.append(MovaPropertySensor(box_data, did, key, name))
         if new_entities:
-            _log_loop_identity("_add_property_entities", hass)
             async_add_entities(new_entities)
 
     def _handle_new_device(did: str) -> None:
-        _log_loop_identity("_handle_new_device", hass)
         async_add_entities([MovaSerialSensor(box_data, did)])
         _add_property_entities(did)
 
