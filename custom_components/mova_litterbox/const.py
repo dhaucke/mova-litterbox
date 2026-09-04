@@ -2,14 +2,14 @@
 
 DOMAIN = "mova_litterbox"
 
-CONF_DID = "did"
-CONF_UID = "uid"
-CONF_MODEL = "model"
-CONF_MAC = "mac"
 CONF_PORT = "port"
 
 DEFAULT_PORT = 19974
 
+# Fired with a did payload whenever a not-yet-seen device sends its first
+# message, so sensor.py can create entities for it on the fly.
+SIGNAL_NEW_DEVICE = f"{DOMAIN}_new_device"
+# Fired with a did payload whenever that device's properties change.
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 
 # siid.piid -> friendly name. Meaning is a best guess from observed traffic
