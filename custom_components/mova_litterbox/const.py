@@ -38,5 +38,8 @@ KNOWN_PROPERTIES = {
     # writable from HA (see broker.py - the proxy only relays/observes
     # so far, doesn't inject).
     "3.13": "Air Purification (observed, not yet controllable from HA)",
-    "3.14": "Consumable 2",
+    # Confirmed 2026-09-04: Denis tapped "Desodorierungsflüssigkeit"
+    # (deodorizing liquid) in the app, captured as set_properties
+    # siid=3/piid=14 value=1, followed by event_occured(siid=4, eiid=10).
+    "3.14": "Deodorizing Liquid (observed, not yet controllable from HA)",
 }
