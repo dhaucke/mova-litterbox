@@ -3,8 +3,12 @@
 DOMAIN = "mova_litterbox"
 
 CONF_PORT = "port"
+CONF_UPSTREAM = "upstream"
 
 DEFAULT_PORT = 19974
+# Public resolvers used to look up the real MOVA broker IP, bypassing
+# whatever local DNS rewrite is redirecting the same hostname to us.
+PUBLIC_DNS_SERVERS = ["1.1.1.1", "8.8.8.8"]
 
 # Fired with a did payload whenever a not-yet-seen device sends its first
 # message, so sensor.py can create entities for it on the fly.

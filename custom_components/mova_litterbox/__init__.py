@@ -9,8 +9,21 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .broker import MovaLocalBroker, build_ssl_context, ensure_self_signed_cert
-from .const import DEFAULT_PORT, DOMAIN, CONF_PORT, SIGNAL_NEW_DEVICE, SIGNAL_UPDATE
+from .broker import (
+    MovaLocalBroker,
+    build_server_ssl_context,
+    ensure_self_signed_cert,
+    resolve_public,
+)
+from .const import (
+    CONF_PORT,
+    CONF_UPSTREAM,
+    DEFAULT_PORT,
+    DOMAIN,
+    PUBLIC_DNS_SERVERS,
+    SIGNAL_NEW_DEVICE,
+    SIGNAL_UPDATE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
@@ -75,17 +88,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     box_data = MovaLitterBoxData()
 
     storage_dir = Path(hass.config.path("mova_litterbox"))
+    upstream_host, _, upstream_port_str = entry.data[CONF_UPSTREAM].partition(":")
+    upstream_port = int(upstream_port_str) if upstream_port_str else DEFAULT_PORT
 
-    def _prepare_tls() -> ssl.SSLContext:
-        # File I/O and OpenSSL cert loading are blocking - must not run
-        # directly on the event loop.
+    def _prepare() -> tuple[ssl.SSLContext, str]:
+        # File I/O, OpenSSL cert loading, and the DNS lookup below are all
+        # blocking - must not run directly on the event loop.
         storage_dir.mkdir(exist_ok=True)
         cert_path = storage_dir / "cert.pem"
         key_path = storage_dir / "key.pem"
         ensure_self_signed_cert(cert_path, key_path, "eu.iot.mova-tech.com")
-        return build_ssl_context(cert_path, key_path)
+        ctx = build_server_ssl_context(cert_path, key_path)
+        ip = resolve_public(upstream_host, PUBLIC_DNS_SERVERS)
+        return ctx, ip
 
-    ssl_context = await hass.async_add_executor_job(_prepare_tls)
+    ssl_context, upstream_ip = await hass.async_add_executor_job(_prepare)
 
     def _on_message(message: dict) -> None:
         box_data.handle_message(hass, message)
@@ -93,6 +110,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     broker = MovaLocalBroker(
         ssl_context,
         entry.data.get(CONF_PORT, DEFAULT_PORT),
+        upstream_host,
+        upstream_port,
+        upstream_ip,
         _on_message,
     )
     await broker.start()
