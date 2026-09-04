@@ -49,6 +49,11 @@ class MovaLitterBoxData:
             for prop in data.get("params", []):
                 key = f"{prop.get('siid')}.{prop.get('piid')}"
                 device["properties"][key] = prop
+        else:
+            # Anything else - notably app-issued commands, whose method
+            # name/shape we don't know yet - so it's visible instead of
+            # silently dropped.
+            _LOGGER.warning("Unhandled MOVA message: %s", message)
 
         # handle_message is called from the broker's own connection-handling
         # task, which HA doesn't guarantee runs on hass.loop - dispatching
