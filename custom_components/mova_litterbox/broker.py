@@ -66,6 +66,13 @@ def ensure_self_signed_cert(cert_path: Path, key_path: Path, common_name: str) -
     )
 
 
+def build_ssl_context(cert_path: Path, key_path: Path) -> ssl.SSLContext:
+    """Build the TLS server context. Blocking (disk I/O) - run via executor."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(cert_path), str(key_path))
+    return ctx
+
+
 async def _read_remaining_length(reader: asyncio.StreamReader) -> int | None:
     multiplier = 1
     value = 0
@@ -94,15 +101,13 @@ class MovaLocalBroker:
 
     def __init__(
         self,
-        cert_path: Path,
-        key_path: Path,
+        ssl_context: ssl.SSLContext,
         port: int,
         on_message: Callable[[dict], None],
     ) -> None:
         self._port = port
         self._on_message = on_message
-        self._ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        self._ctx.load_cert_chain(str(cert_path), str(key_path))
+        self._ctx = ssl_context
         self._server: asyncio.base_events.Server | None = None
 
     async def start(self) -> None:

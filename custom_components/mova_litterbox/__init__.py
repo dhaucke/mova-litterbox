@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import logging
+import ssl
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .broker import MovaLocalBroker, ensure_self_signed_cert
+from .broker import MovaLocalBroker, build_ssl_context, ensure_self_signed_cert
 from .const import DEFAULT_PORT, DOMAIN, CONF_PORT, SIGNAL_NEW_DEVICE, SIGNAL_UPDATE
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,9 +50,18 @@ class MovaLitterBoxData:
                 key = f"{prop.get('siid')}.{prop.get('piid')}"
                 device["properties"][key] = prop
 
+        # handle_message is called from the broker's own connection-handling
+        # task, which HA doesn't guarantee runs on hass.loop - dispatching
+        # directly here can construct a Task bound to the wrong loop
+        # (RuntimeError: loop ... is not the running loop). call_soon_threadsafe
+        # guarantees the dispatch itself always runs on hass.loop.
         if is_new:
-            async_dispatcher_send(hass, SIGNAL_NEW_DEVICE, did)
-        async_dispatcher_send(hass, SIGNAL_UPDATE, did)
+            hass.loop.call_soon_threadsafe(
+                async_dispatcher_send, hass, SIGNAL_NEW_DEVICE, did
+            )
+        hass.loop.call_soon_threadsafe(
+            async_dispatcher_send, hass, SIGNAL_UPDATE, did
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -60,17 +70,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     box_data = MovaLitterBoxData()
 
     storage_dir = Path(hass.config.path("mova_litterbox"))
-    storage_dir.mkdir(exist_ok=True)
-    cert_path = storage_dir / "cert.pem"
-    key_path = storage_dir / "key.pem"
-    ensure_self_signed_cert(cert_path, key_path, "eu.iot.mova-tech.com")
+
+    def _prepare_tls() -> ssl.SSLContext:
+        # File I/O and OpenSSL cert loading are blocking - must not run
+        # directly on the event loop.
+        storage_dir.mkdir(exist_ok=True)
+        cert_path = storage_dir / "cert.pem"
+        key_path = storage_dir / "key.pem"
+        ensure_self_signed_cert(cert_path, key_path, "eu.iot.mova-tech.com")
+        return build_ssl_context(cert_path, key_path)
+
+    ssl_context = await hass.async_add_executor_job(_prepare_tls)
 
     def _on_message(message: dict) -> None:
         box_data.handle_message(hass, message)
 
     broker = MovaLocalBroker(
-        cert_path,
-        key_path,
+        ssl_context,
         entry.data.get(CONF_PORT, DEFAULT_PORT),
         _on_message,
     )
