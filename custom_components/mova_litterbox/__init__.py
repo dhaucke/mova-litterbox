@@ -26,7 +26,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "event"]
 
 # Methods we've seen and recognize but don't parse (yet) - not anomalies.
 KNOWN_UNHANDLED_METHODS = {"event_occured", "_otc.info", "local.query_tz_time"}

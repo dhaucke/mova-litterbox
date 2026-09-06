@@ -30,16 +30,23 @@ KNOWN_PROPERTIES = {
     "2.6": "Property 2.6",
     "2.10": "Property 2.10",
     "2.11": "Property 2.11",
+}
+
+# siid.piid -> friendly name, for properties that are momentary commands
+# (app sends value=1, then value=0 right after) rather than persistent
+# state - modeled as `event` entities (one "activated" firing) instead of
+# a sensor/binary_sensor, since there's no meaningful "on" state to hold.
+# Not yet writable from HA (see broker.py - the proxy only relays/observes
+# so far, doesn't inject), so these are observe-only for now.
+MOMENTARY_PROPERTIES = {
     # Confirmed 2026-09-04: captured a real app button tap as
     # set_properties siid=3/piid=13 value=1 (then value=0 shortly after),
     # followed by an event_occured(siid=4, eiid=9). Denis confirmed the
     # button he tapped was air purification/deodorizing, not the cleaning
-    # cycle - so this is that toggle, not "start cleaning". Not yet
-    # writable from HA (see broker.py - the proxy only relays/observes
-    # so far, doesn't inject).
-    "3.13": "Air Purification (observed, not yet controllable from HA)",
+    # cycle - so this is that toggle, not "start cleaning".
+    "3.13": "Air Purification",
     # Confirmed 2026-09-04: Denis tapped "Desodorierungsflüssigkeit"
     # (deodorizing liquid) in the app, captured as set_properties
     # siid=3/piid=14 value=1, followed by event_occured(siid=4, eiid=10).
-    "3.14": "Deodorizing Liquid (observed, not yet controllable from HA)",
+    "3.14": "Deodorizing Liquid",
 }

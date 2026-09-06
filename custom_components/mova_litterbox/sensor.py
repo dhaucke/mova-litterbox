@@ -7,7 +7,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN, KNOWN_PROPERTIES, SIGNAL_NEW_DEVICE, SIGNAL_UPDATE
+from .const import (
+    DOMAIN,
+    KNOWN_PROPERTIES,
+    MOMENTARY_PROPERTIES,
+    SIGNAL_NEW_DEVICE,
+    SIGNAL_UPDATE,
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
@@ -21,6 +27,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             return
         new_entities = []
         for key in device["properties"]:
+            if key in MOMENTARY_PROPERTIES:
+                continue  # exposed as an `event` entity instead, see event.py
             entity_key = (did, key)
             if entity_key in created_property_entities:
                 continue
