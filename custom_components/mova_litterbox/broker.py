@@ -32,6 +32,9 @@ _LOGGER = logging.getLogger(__name__)
 MQTT_PUBLISH = 3
 MQTT_DISCONNECT = 14
 
+# 1+2+4+8+16+30 = ~61s of retrying a transient WAN outage before giving up.
+UPSTREAM_CONNECT_RETRIES = 6
+
 
 def ensure_self_signed_cert(cert_path: Path, key_path: Path, common_name: str) -> None:
     """Generate a self-signed cert/key pair if they don't already exist."""
@@ -175,20 +178,34 @@ class MovaLocalBroker:
         peer = device_writer.get_extra_info("peername")
         _LOGGER.debug("Connection from %s", peer)
 
-        try:
-            upstream_reader, upstream_writer = await asyncio.open_connection(
-                self._upstream_ip,
-                self._upstream_port,
-                ssl=self._upstream_ctx,
-                server_hostname=self._upstream_host,
-            )
-        except Exception:  # pylint: disable=broad-except
-            _LOGGER.exception(
-                "Could not reach real MOVA broker %s:%s for %s",
-                self._upstream_ip, self._upstream_port, peer,
-            )
-            device_writer.close()
-            return
+        upstream_reader = upstream_writer = None
+        delay = 1
+        for attempt in range(UPSTREAM_CONNECT_RETRIES):
+            try:
+                upstream_reader, upstream_writer = await asyncio.open_connection(
+                    self._upstream_ip,
+                    self._upstream_port,
+                    ssl=self._upstream_ctx,
+                    server_hostname=self._upstream_host,
+                )
+                break
+            except Exception:  # pylint: disable=broad-except
+                # Most commonly a transient WAN outage (e.g. the nightly
+                # forced reconnect German ISPs do) - keep retrying with
+                # backoff instead of giving up until HA is restarted.
+                if attempt == UPSTREAM_CONNECT_RETRIES - 1:
+                    _LOGGER.exception(
+                        "Could not reach real MOVA broker %s:%s for %s after %s attempts",
+                        self._upstream_ip, self._upstream_port, peer, UPSTREAM_CONNECT_RETRIES,
+                    )
+                    device_writer.close()
+                    return
+                _LOGGER.debug(
+                    "Upstream connect attempt %s/%s failed for %s, retrying in %ss",
+                    attempt + 1, UPSTREAM_CONNECT_RETRIES, peer, delay,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
 
         try:
             await asyncio.gather(

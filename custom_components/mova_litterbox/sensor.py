@@ -97,7 +97,10 @@ class MovaPropertySensor(SensorEntity):
 
     def _handle_update(self, did: str) -> None:
         if did == self._did:
-            self.async_write_ha_state()
+            # schedule_update_ha_state (not async_write_ha_state) - it's
+            # safe from any thread, unlike the async_ variant which
+            # requires already being on the event loop.
+            self.schedule_update_ha_state()
 
 
 class MovaSerialSensor(SensorEntity):
@@ -128,4 +131,7 @@ class MovaSerialSensor(SensorEntity):
 
     def _handle_update(self, did: str) -> None:
         if did == self._did:
-            self.async_write_ha_state()
+            # schedule_update_ha_state (not async_write_ha_state) - it's
+            # safe from any thread, unlike the async_ variant which
+            # requires already being on the event loop.
+            self.schedule_update_ha_state()

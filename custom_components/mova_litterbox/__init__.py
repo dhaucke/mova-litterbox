@@ -1,10 +1,8 @@
 """The MOVA Litter Box (local) integration."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import ssl
-import threading
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
@@ -29,6 +27,9 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
+
+# Methods we've seen and recognize but don't parse (yet) - not anomalies.
+KNOWN_UNHANDLED_METHODS = {"event_occured", "_otc.info"}
 
 
 class MovaLitterBoxData:
@@ -74,35 +75,24 @@ class MovaLitterBoxData:
                 if prop.get("code") == 0 and "value" in prop:
                     key = f"{prop.get('siid')}.{prop.get('piid')}"
                     device["properties"][key] = prop
+        elif method in KNOWN_UNHANDLED_METHODS:
+            # Recognized but not yet parsed (event log entries, device
+            # info pings) - expected traffic, not worth a warning.
+            _LOGGER.debug("Unhandled MOVA message: %s", message)
         else:
             # Anything else - notably app-issued commands, whose method
             # name/shape we don't know yet - so it's visible instead of
             # silently dropped.
             _LOGGER.warning("Unhandled MOVA message: %s", message)
 
-        # handle_message is called from the broker's own connection-handling
-        # task/thread. Two prior attempts here (raw
-        # hass.loop.call_soon_threadsafe, then hass.add_job - which for a
-        # @callback-decorated target like async_dispatcher_send reduces to
-        # the same call_soon_threadsafe internally) both still resulted in
-        # HA's thread-safety detector reporting entities calling
-        # async_write_ha_state off the event loop thread. Logging the exact
-        # check HA itself uses (hass.loop_thread_id vs
-        # threading.get_ident()) right here, plus switching to
-        # run_coroutine_threadsafe, which runs the target as a real
-        # coroutine on hass.loop rather than a scheduled plain callback.
-        _LOGGER.warning(
-            "[thread-debug] handle_message: current_thread_id=%s hass.loop_thread_id=%s same=%s",
-            threading.get_ident(), hass.loop_thread_id,
-            threading.get_ident() == hass.loop_thread_id,
-        )
-
-        async def _dispatch() -> None:
-            if is_new:
-                async_dispatcher_send(hass, SIGNAL_NEW_DEVICE, did)
-            async_dispatcher_send(hass, SIGNAL_UPDATE, did)
-
-        asyncio.run_coroutine_threadsafe(_dispatch(), hass.loop)
+        # handle_message runs as part of the broker's own asyncio relay
+        # coroutine (see broker.py), which is scheduled on hass.loop itself
+        # (asyncio.start_server was awaited from async_setup_entry) - never
+        # a separate thread. So no thread-hop is needed to reach the event
+        # loop here; call the (@callback, synchronous) dispatcher directly.
+        if is_new:
+            async_dispatcher_send(hass, SIGNAL_NEW_DEVICE, did)
+        async_dispatcher_send(hass, SIGNAL_UPDATE, did)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
