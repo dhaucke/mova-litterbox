@@ -54,7 +54,11 @@ class MovaLitterBoxData:
             did, {"uid": None, "mac": None, "model": None, "properties": {}}
         )
 
-        data = message.get("data", {})
+        # Cloud-relayed telemetry nests method/params/result under "data";
+        # app-issued direct commands (e.g. set_properties) don't - they put
+        # them straight on the message. Fall back to the message itself so
+        # both shapes are read the same way below.
+        data = message.get("data") or message
         method = data.get("method")
         if method == "dev_start":
             params = data.get("params", {})
