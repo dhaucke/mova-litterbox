@@ -61,7 +61,12 @@ class MovaLitterBoxData:
             device["uid"] = params.get("uid")
             device["mac"] = params.get("mac")
             device["model"] = params.get("model")
-        elif method == "properties_changed":
+        elif method in ("properties_changed", "set_properties"):
+            # properties_changed is the device reporting its own state;
+            # set_properties is the app *commanding* a change - both carry
+            # the same {did, siid, piid, value} shape, so both update our
+            # cache immediately rather than waiting for a confirmation
+            # message to come back through.
             for prop in data.get("params", []):
                 key = f"{prop.get('siid')}.{prop.get('piid')}"
                 device["properties"][key] = prop
