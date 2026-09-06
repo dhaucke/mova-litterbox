@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 
 # Methods we've seen and recognize but don't parse (yet) - not anomalies.
-KNOWN_UNHANDLED_METHODS = {"event_occured", "_otc.info"}
+KNOWN_UNHANDLED_METHODS = {"event_occured", "_otc.info", "local.query_tz_time"}
 
 
 class MovaLitterBoxData:
@@ -75,9 +75,11 @@ class MovaLitterBoxData:
                 if prop.get("code") == 0 and "value" in prop:
                     key = f"{prop.get('siid')}.{prop.get('piid')}"
                     device["properties"][key] = prop
-        elif method in KNOWN_UNHANDLED_METHODS:
-            # Recognized but not yet parsed (event log entries, device
-            # info pings) - expected traffic, not worth a warning.
+        elif method in KNOWN_UNHANDLED_METHODS or isinstance(data.get("result"), dict):
+            # Recognized but not yet parsed: event log entries, device info
+            # pings, timezone queries, and action-invoke acks (a dict
+            # result with a siid/aiid/code, as opposed to the list-shaped
+            # property results handled above) - expected traffic.
             _LOGGER.debug("Unhandled MOVA message: %s", message)
         else:
             # Anything else - notably app-issued commands, whose method
